@@ -1,0 +1,177 @@
+from cubevis.idealpy.fits import sxpar, sxdelpar, sxaddpar, getaxes, sxaddhist
+from cubevis.utils import CubeVisArgumentError
+from .mkrmsimage import mkrmsimage
+
+import numpy
+from astropy.io import fits as pyfits
+import math
+#import copy
+import astropy.io
+
+def momentcube (hdu, v1, v2, header=None, 
+                chan=False, dontblank=False,
+                kms=True,
+                moment=0,
+                returnrms=False,
+                window=None):
+    """
+    Create 2d moment image from cube. The input cube is expected
+    to be in the VLM format
+
+    @param hdu: input pyfits style HDU (header data unit) or just the numpy
+        numpy format data cube from pyfits HDU data attribute.
+        This cube is expected to be in vlm format. If numpy format
+        data cube is passed, then the header parameter should also be
+        passed in.
+    @type hdu: pyfits HDU or numpy array
+    @param header: pyfits style header object that corresponds to the
+        hdu data variable. This header parameter is only considered if
+        the hdu parameter is a numpy array type rather than a pyfits HDU
+        type
+    @type header: pyfits header object
+    @param v1: lower velocity to be used (If chan is set to True, this
+        should be an integer). If chan is False, this is expected to be
+        velocity expressed in kms (if the input parameter kms is True). If
+        chan is False, and kms is False, v1 is treated with the same
+        units as the FITS header describes.
+    @param v2: upper velocity to be used. Same explanation as v1
+    @param chan: If True, v1 and v2 are treated as channels. If False,
+        they are treated as velocity
+    @type chan: Boolean
+    @param dontblank: By default, momentcube will use the BLANK fits
+        header value and automatically zero blanked values in order
+        to compute moments. If dontblank keyword is set, then
+        such blanking is not performed.
+    @type dontblank: Boolean
+    @param kms: If True velocity units is in kms.
+    @type kms: Boolean
+    @param moment: which moment to extract. default is moment=0
+        - moment=0 - integrated intensity
+        - moment=1 - centroid velocity
+        - moment=2 - width
+    @type moment: int
+    @param returnrms: If True, return image of the noise in the moment map
+    @type returnrms: Boolean
+    @param window: list of tuples (pairs) of channels/velocity to exclude
+        from polynomial calculation in determining rms. If chan is set to
+        True, these should be integers. If chan is False, this is expected to be
+        velocity expressed in kms (if the input parameter kms is True). If
+        chan is False, and kms is False, window is treated with the same
+        units as the FITS header describes.
+    @return: A HDU instance with 2d output map in the data attribute of the HDU, 
+        and the corresponding header in header attribute of the HDU. If
+        returnrms is True, returns the momentmap and rms image as a tuple.
+
+    """    
+    if moment not in range(3):
+        raise CubeVisArgumentError('moment', "moment can only be one of 0,1,2")
+    if isinstance(hdu, astropy.io.fits.hdu.image.PrimaryHDU):
+        #get data and header from the hdu
+        data = hdu.data
+        header = hdu.header
+    elif isinstance(hdu, numpy.ndarray):
+        if header is None or not isinstance(header, astropy.io.fits.header.Header):
+            raise CubeVisArgumentError('header', "Since you passed in data that is a numpy array, set header to a pyfits header type")
+        data = hdu
+    else:
+        raise CubeVisArgumentError('hdu', "can only be one of pyfits.PrimaryHDU type or numpy ndarray")
+    if returnrms and window is None:
+        raise CubeVisArgumentError('rms', 'if returnrms is True, you need to specify a window to do the rms calculation in')
+    if returnrms and moment != 0:
+        raise CubeVisArgumentError('rms', 'For now, only moment=0 return rms image')
+    # calculate the x-axis (velocity) 
+    crpix1 = sxpar(header,"CRPIX1")
+    crval1 = sxpar(header,"CRVAL1")
+    cdelt1 = sxpar(header,"CDELT1")
+    if kms:
+        #convert velocity to km/s
+        crval1 = crval1/1000.
+        cdelt1 = cdelt1/1000.
+    ctype1 = sxpar(header,"CTYPE1")
+    crpix2 = sxpar(header,"CRPIX2")
+    crval2 = sxpar(header,"CRVAL2")
+    cdelt2 = sxpar(header,"CDELT2")
+    ctype2 = sxpar(header,"CTYPE2")
+    crpix3 = sxpar(header,"CRPIX3")
+    crval3 = sxpar(header,"CRVAL3")
+    cdelt3 = sxpar(header,"CDELT3")
+    ctype3 = sxpar(header,"CTYPE3")
+    nv = sxpar(header,"NAXIS1")
+    nx = sxpar(header,"NAXIS2")
+    ny = sxpar(header,"NAXIS3")
+    blank = sxpar(header,"BLANK")
+
+    #cube = data.copy()
+    if not dontblank and blank is not None:
+        ind = numpy.where(data == blank)
+        data[ind] = 0.0
+
+    vind = numpy.zeros(nv, dtype=bool)
+    if not chan:
+        #get velocity axis
+        velax = getaxes(header, 1)
+        if v2 < v1:
+            v1, v2 = v2, v1
+
+    if chan:
+        vind[v1:v2+1] = True
+    else:
+        vind = numpy.logical_and(velax>= v1, velax<=v2)
+
+    N = len(numpy.where(vind)[0])
+    print("The number of spectral channels used, N: %d" % N)
+    #T = data[:,:,vind].sum(axis=2) #T is integ intensity image now
+    T = numpy.nansum(data[:,:,vind], axis=2) #T is integ intensity image now
+    if moment >= 1:
+        C = numpy.nansum(data[:,:,vind]*velax[vind], axis=2)
+        C = C/T  #centroid velocity definition
+        if moment == 2:
+            W = numpy.nansum(data[:,:,vind]*velax[vind]**2., axis=2)
+            W = W/T - C**2.
+
+    hnew = header.copy()
+    
+    sxaddpar(hnew, "CRVAL1", crval2, comment="DEGREES")
+    sxaddpar(hnew, "CRPIX1", crpix2)
+    sxaddpar(hnew, "CDELT1", cdelt2, comment="DEGREES")
+    sxaddpar(hnew, "CTYPE1", ctype2)
+    sxaddpar(hnew, "CRVAL2", crval3, comment="DEGREES")
+    sxaddpar(hnew, "CRPIX2", crpix3)
+    sxaddpar(hnew, "CDELT2", cdelt3, comment="DEGREES")
+    sxaddpar(hnew, "CTYPE2", ctype3)
+    sxaddpar(hnew, "NAXIS", 2)
+    sxaddpar(hnew, "NAXIS1", nx)
+    sxaddpar(hnew, "NAXIS2", ny)
+    sxaddpar(hnew, "NAXIS3", 1)
+    sxaddpar(hnew, "NAXIS4", 1)
+    if chan:
+        vorc = 'CHANNEL'
+    else:
+        vorc = 'VELOCITY'
+    sxaddpar(hnew, "VMIN", v1, "LOWER %s LIMIT" % vorc)
+    sxaddpar(hnew,"VMAX", v2, "UPPER %s LIMIT" % vorc)
+    sxaddpar(hnew, "MOMENT", moment, comment="Order of Moment")
+    if moment == 0:
+        units = "K.km/s"
+    else:
+        units = "km/s"
+    sxaddpar(hnew, "BUNIT", units, "Units")
+    for axis in range(3, 5):
+        for attr in ('CRVAL', 'CRPIX', 'CDELT',
+                     'CROTA', 'CTYPE', 'NAXIS'):
+            sxdelpar(hnew, '%s%1d' % (attr, axis))
+    if moment == 0:
+        dt = T*abs(cdelt1)
+    elif moment == 1:
+        dt = C
+    else:
+        dt = W
+    hdu = pyfits.PrimaryHDU(dt, header=hnew)
+    if moment == 0 and returnrms:
+        specrms = mkrmsimage(data, window=window, header=header)
+        rms_data = specrms.data*abs(cdelt1)*math.sqrt(N)
+        hrms = hnew.copy()
+        sxaddhist(hrms, "WINDOW : %s; Window %s LIMITS" % (repr(window), vorc))
+        rms = pyfits.PrimaryHDU(rms_data, header=hrms)
+        return hdu, rms
+    return hdu
