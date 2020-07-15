@@ -4,8 +4,8 @@ import os
 import sys
 import numpy
 import copy
-from sculpt.idealpy.utils.congrid import congrid
-from sculpt.utils import SculptArgumentError
+from cubevis.idealpy.utils.congrid import congrid
+from cubevis.utils import CubeVisArgumentError
 
 def transpose_data(data, origin='vxy'):
     """always transposes vxy to xyv
@@ -51,44 +51,50 @@ def transpose_header(header, origin='vxy'):
     axis2->axis1, axis3->axis2."""
     cards = header.cards
     keepattr = {}
-    for attr in ('NAXIS', 'CTYPE', 'CRVAL', 'CDELT', 'CRPIX', 'CROTA'):
+    for attr in ('NAXIS', 'CTYPE', 'CRVAL', 'CDELT', 'CRPIX', 'CUNIT', 'CROTA'):
         keepattr[attr] = {}
         for i in range(1, 4):
-            keepattr[attr][i] = copy.copy(cards['%s%d' % (attr,i)])
+            if '%s%d' % (attr,i) in header:
+                keepattr[attr][i] = copy.copy(cards['%s%d' % (attr,i)])
+    print(keepattr)
     if origin == 'vxy':
-        for attr in ('NAXIS', 'CTYPE', 'CRVAL', 'CDELT', 'CRPIX', 'CROTA'):
-            #1->3
-            copycard(cards['%s3' % attr], keepattr[attr][1])
-            #2->1
-            copycard(cards['%s1' % attr], keepattr[attr][2])
-            #3->2
-            copycard(cards['%s2' % attr], keepattr[attr][3])
+        for attr in ('NAXIS', 'CTYPE', 'CRVAL', 'CDELT', 'CRPIX', 'CUNIT', 'CROTA'):
+            if '%s' % attr in keepattr and len(keepattr[attr]) > 0:
+                #1->3
+                copycard(cards['%s3' % attr], keepattr[attr][1])
+                #2->1
+                copycard(cards['%s1' % attr], keepattr[attr][2])
+                #3->2
+                copycard(cards['%s2' % attr], keepattr[attr][3])
         dest = 'xyv'
         header.add_history('Tranposing from %s format to %s format' % (origin, dest))
     elif origin == 'vyx':
-        for attr in ('NAXIS', 'CTYPE', 'CRVAL', 'CDELT', 'CRPIX', 'CROTA'):
-            #1->3
-            copycard(cards['%s3' % attr], keepattr[attr][1])
-            #3->1
-            copycard(cards['%s1' % attr], keepattr[attr][3])
+        for attr in ('NAXIS', 'CTYPE', 'CRVAL', 'CDELT', 'CRPIX', 'CUNIT', 'CROTA'):
+            if '%s' % attr in keepattr and len(keepattr[attr]) > 0:
+                #1->3
+                copycard(cards['%s3' % attr], keepattr[attr][1])
+                #3->1
+                copycard(cards['%s1' % attr], keepattr[attr][3])
             dest = 'xyv'
             header.add_history('Tranposing from %s format to %s format' % (origin, dest))
     elif origin == 'xyv':
-        for attr in ('NAXIS', 'CTYPE', 'CRVAL', 'CDELT', 'CRPIX', 'CROTA'):
-            #1->2
-            copycard(cards['%s2' % attr], keepattr[attr][1])
-            #2->3
-            copycard(cards['%s3' % attr], keepattr[attr][2])
-            #3->1
-            copycard(cards['%s1' % attr], keepattr[attr][3])
+        for attr in ('NAXIS', 'CTYPE', 'CRVAL', 'CDELT', 'CRPIX', 'CUNIT', 'CROTA'):
+            if '%s' % attr in keepattr and len(keepattr[attr]) > 0:
+                #1->2
+                copycard(cards['%s2' % attr], keepattr[attr][1])
+                #2->3
+                copycard(cards['%s3' % attr], keepattr[attr][2])
+                #3->1
+                copycard(cards['%s1' % attr], keepattr[attr][3])
         dest = 'vxy'
         header.add_history('Tranposing from %s format to %s format' % (origin, dest))
     elif origin == 'yxv':
-        for attr in ('NAXIS', 'CTYPE', 'CRVAL', 'CDELT', 'CRPIX', 'CROTA'):
-            #3->1
-            copycard(cards['%s1' % attr], keepattr[attr][3])
-            #1->3
-            copycard(cards['%s3' % attr], keepattr[attr][1])
+        for attr in ('NAXIS', 'CTYPE', 'CRVAL', 'CDELT', 'CRPIX', 'CUNIT', 'CROTA'):
+            if '%s' % attr in keepattr and len(keepattr[attr]) > 0:
+                #3->1
+                copycard(cards['%s1' % attr], keepattr[attr][3])
+                #1->3
+                copycard(cards['%s3' % attr], keepattr[attr][1])
         dest = 'vxy'
         header.add_history('Tranposing from %s format to %s format' % (origin, dest))
     return header
@@ -119,9 +125,9 @@ def smooth_spec(f, y, window_len=5, window='hanning'):
     if window_len<3:
         return data
     if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
-        raise ValueError, "Window is not one of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
+        raise ValueError("Window is not one of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'")
     if data.size < window_len:
-        raise ValueError, "data vector needs to be bigger than window size."
+        raise ValueError("data vector needs to be bigger than window size.")
     s=numpy.r_[2*data[0]-data[window_len:1:-1],data,2*data[-1]-data[-1:-window_len:-1]]
     if window == 'flat': #moving average
         w = numpy.ones(window_len,'d')
@@ -168,13 +174,13 @@ def transpose_cube(hdu, origin='xyv',
     header = hdu.header
     data = hdu.data
     if origin not in ('xyv', 'yxv', 'vxy', 'vyx'):
-        raise SculptArgumentError('transpose_cube', 'Origin should be one of xyv, yxv, vxy or vxy')
+        raise CubeVisArgumentError('transpose_cube', 'Origin should be one of xyv, yxv, vxy or vxy')
     if origin[2] == 'v':
-        if header.get('CTYPE3') not in ('VELO-LSR', 'VELOCITY'):
-            raise SculptArgumentError('header', 'Input Cube does not have Velocity in 3rd axis')
+        if header.get('CTYPE3') not in ('VELO-LSR', 'VELO_LSR', 'VELOCITY'):
+            raise CubeVisArgumentError('header', 'Input Cube does not have Velocity in 3rd axis')
     else:
-        if header.get('CTYPE1') not in ('VELO-LSR', 'VELOCITY'):
-            raise SculptArgumentError('header', 'Input Cube does not have Velocity in 1st axis')
+        if header.get('CTYPE1') not in ('VELO-LSR', 'VELO_LSR', 'VELOCITY'):
+            raise CubeVisArgumentError('header', 'Input Cube does not have Velocity in 1st axis')
     data1 = transpose_data(data, origin=origin)
     header1 = transpose_header(header, origin=origin)
     if smooth is not None:
@@ -214,27 +220,27 @@ if __name__ == '__main__':
     if options.outfilename is None:
         base, ext = os.path.splitext(filename)
         outfilename = base+out_ext+ext
-    print filename, outfilename
+    print(filename, outfilename)
 
     if os.path.exists(filename):
         fp = pyfits.open(filename)
         header = fp[0].header
         if options.xyv and header.get('CTYPE1') != 'VELO-LSR':
-            print "Input header is not of vxy type"
+            print("Input header is not of vxy type")
             sys.exit(-1)
         if options.xyv:
             data = fp[0].data
             #input data is in vxy
             data1 = transpose_data(data, origin='vxy')
             header1 = transpose_header(header, origin='vxy')
-            print header1
-            print "Smoothing..."
+            print(header1)
+            print("Smoothing...")
             if options.smooth:
                 data, header = smooth(data1, header1, options.smooth,
                                       origin='vxy')
             fp[0].header = header
             fp[0].data = data
-            print header
+            print(header)
             fp.writeto(outfilename, clobber=True)
 
             

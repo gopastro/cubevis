@@ -171,8 +171,8 @@ def transpose_cube(hdu, origin='xyv',
     If smooth is an integer the velocity axis is also smoothed 
     by the integral value
     """
-    header = hdu.header
-    data = hdu.data
+    header = hdu.header.copy()
+    data = hdu.data.copy()
     if origin not in ('xyv', 'yxv', 'vxy', 'vyx'):
         raise CubeVisArgumentError('transpose_cube', 'Origin should be one of xyv, yxv, vxy or vxy')
     if origin[2] == 'v':
