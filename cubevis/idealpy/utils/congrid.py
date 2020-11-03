@@ -65,7 +65,7 @@ def congrid(a, newdims, method='linear', centre=False, minusone=False):
         mint = scipy.interpolate.interp1d( olddims[-1], a, kind=method )
         newa = mint( dimlist[-1] )
 
-        trorder = [ndims - 1] + range( ndims - 1 )
+        trorder = [ndims - 1] + list(range( ndims - 1 ))
         for i in range( ndims - 2, -1, -1 ):
             newa = newa.transpose( trorder )
 
@@ -83,7 +83,7 @@ def congrid(a, newdims, method='linear', centre=False, minusone=False):
         nslices = [ slice(0,j) for j in list(newdims) ]
         newcoords = n.mgrid[nslices]
 
-        newcoords_dims = range(n.rank(newcoords))
+        newcoords_dims = list(range(n.rank(newcoords)))
         #make first index last
         newcoords_dims.append(newcoords_dims.pop(0))
         newcoords_tr = newcoords.transpose(newcoords_dims)

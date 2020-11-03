@@ -2,11 +2,36 @@ from cubevis.plots.cubevis_fitsfigure import CubeVisFITSFigure
 from cubevis.idealpy.radio import getaxes
 from cubevis.idealpy.fits import xyad
 from cubevis.idealpy.radio import momentcube, cube_extract
+from cubevis.idealpy.radio import extract_posvel, extract_posvel_angle
 from cubevis.utils import CubeVisArgumentError
 import matplotlib.pyplot as mpl
 #from matplotlib.mlab import inside_poly
 from matplotlib import path
 import numpy
+import math
+
+def make_velocity_ticks(vel12, velocities):
+    """
+    vel12 is the velocity data, velocities is an array
+    of suggested tick labels
+    """
+    ticks = []
+    labels = []
+    for vel in velocities:
+        v = abs(vel12-vel)
+        ticks.append(numpy.where(v == v.min())[0][0])
+        labels.append("%.1f" % vel)
+    return ticks, labels
+
+def get_levels(data, min_level=0.2, incr=0.1):
+   """Given a data array, this function returns a list
+    of contour levels starting at min_level % of maximum"""
+   maxd = data.max()
+   #print maxd
+   incr_level = incr*maxd
+   levels = numpy.arange(min_level, maxd, incr_level)
+   print("levels = %s" % levels)
+   return levels.tolist()
 
 class CubeVis(CubeVisFITSFigure):
     """
@@ -40,6 +65,7 @@ class CubeVis(CubeVisFITSFigure):
         self.red_windows = red_windows
         self.rms_window = rms_window
         self.sigma_crit = sigma_crit
+        self.gauss_width = gauss_width
         self.avgfigure = avgfigure
         self.pvangle = pvangle
         self.polygon_vert_blue = []
@@ -355,6 +381,51 @@ class CubeVis(CubeVisFITSFigure):
         avgax.legend(loc='best')
         avgfigure.canvas.draw()
         self.refresh()
+
+    def make_posvel_cut(self):
+        print(self.pvcut)
+        x1, x2 = self.pvcut[0][0], self.pvcut[1][0]
+        y1, y2 = self.pvcut[0][1], self.pvcut[1][1]
+        ax = self._figure.get_axes()[0]
+        ax.plot([x1, x2], [y1, y2], color='w')
+        self.refresh()
+        m = (y1-y2)/(x1-x2)
+        d = math.sqrt((x1-x2)**2 + (y1-y2)**2.)
+        hdu = self.extra_hdus[0]
+        self.posvel = numpy.zeros((int(d), hdu.data.shape[2]))
+        dist = numpy.arange(int(d))
+        if x1 <= x2:
+            x = x1 + numpy.sqrt(dist**2./(1+m**2.)) #2nd term is deltax
+        else:
+            x = x1 - numpy.sqrt(dist**2./(1+m**2.)) #2nd term is deltax
+        y = y1 + m*(x-x1)
+        ax.plot(x, y, 'yo--')
+        self.refresh()
+        #for i in range(int(d)):
+        #    self.posvel[i,:] = extract_spec(self.hdu12, x[i], y[i], gauss_width=3)
+        self.posvel = extract_posvel(hdu, (x1,y1), (x2,y2),
+                                     gauss_width=self.gauss_width)
+        self.plot_posvel()
+
+    def plot_posvel(self, vmin=None, vmax=None):
+        self.pvfigure = mpl.figure()
+        pvax = self.pvfigure.add_subplot(111)
+        mpl.imshow(self.posvel.data, origin='lower', aspect='auto')
+        hdu = self.extra_hdus[0]
+        vel = getaxes(hdu.header, 1)
+        if vmin is None:
+            vmin = numpy.ceil(vel.min())
+        else:
+            vmin = numpy.ceil(vmin)
+        if vmax is None:
+            vmax = numpy.floor(vel.max())
+        else:
+            vmax = numpy.floor(vmax)
+        des_vel = numpy.arange(vmin, vmax, 3.0)
+        ticks, labels = make_velocity_ticks(vel, des_vel)
+        pvax.set_xticks(ticks)
+        pvax.set_xticklabels(labels)
+        self.pvfigure.canvas.draw()
 
     def start_events(self):
         self.cid = self._figure.canvas.mpl_connect('key_press_event', self.on_keypress)

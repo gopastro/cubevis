@@ -140,13 +140,13 @@ def smooth_spec(f, y, window_len=5, window='hanning'):
 def smooth(data, header, smooth_factor, origin='vxy'):
     if origin[0] == 'v':
         shape = copy.copy(data.shape)
-        vdim = int(round(shape[0]/float(smooth_factor)))
-        new_shape = (vdim, shape[1], shape[2])
+        vdim = int(round(shape[2]/float(smooth_factor)))
+        new_shape = (shape[0], shape[1], vdim)
         data = congrid(data, new_shape)
         cards = header.cards
-        card = cards['NAXIS3']
+        card = cards['NAXIS1']
         card.value = vdim
-        card = cards['CDELT3']
+        card = cards['CDELT1']
         card.value = card.value*smooth_factor
         header.add_history('Smoothing velocity axis by %d' % smooth_factor)
         return data, header

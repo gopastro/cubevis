@@ -57,7 +57,7 @@ def mkrmsimage (hdu, window, header=None,
     else:
         raise CubeVisArgumentError('hdu', "can only be one of pyfits.PrimaryHDU type or numpy ndarray")
     #check for list or tuple type of window
-    if type(window) not in (types.ListType, types.TupleType):
+    if not (isinstance(window, list) or isinstance(window, tuple)):
         raise CubeVisArgumentError('window', 'has to be a List Type or Tuple Type')
     # calculate the x-axis (velocity) 
     crpix1 = sxpar(header,"CRPIX1")

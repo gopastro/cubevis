@@ -46,7 +46,7 @@ def extract_posvel(hdu, p1, p2, header=None, gauss_width=2):
     hdr = header.copy()
     dt = data.copy()
     hdu = pyfits.PrimaryHDU(dt, header=hdr)
-    if gauss_width <= 0 or type(gauss_width) != types.IntType:
+    if gauss_width <= 0 or not isinstance(gauss_width, int):
         raise CubeVisArgumentError('gauss_width', "should be positive and non-zero integer")
     try:
         if len(p1) != 2 and len(p2) != 2:

@@ -43,7 +43,7 @@ def extract_spec(hdu, x0, y0, header=None, gauss_width=2):
         raise CubeVisArgumentError('hdu', "can only be one of pyfits.PrimaryHDU type or numpy ndarray")
     hdr = header.copy()
     dt = data.copy()
-    if gauss_width <= 0 or type(gauss_width) != types.IntType:
+    if gauss_width <= 0 or not isinstance(gauss_width, int):
         raise CubeVisArgumentError('gauss_width', "should be positive and non-zero integer")
     gk = gauss_kern(gauss_width)
     kernx, kerny = gk.shape
@@ -67,7 +67,8 @@ def extract_spec(hdu, x0, y0, header=None, gauss_width=2):
         ymax = ysize-1
     specdata = numpy.zeros(vsize, dtype='float')
     #print "Gk = " , gk
-    #print xmin, xmax, ymin, ymax
+    xmin, xmax, ymin, ymax = list(map(int, [xmin, xmax, ymin, ymax]))
+    print(xmin, xmax, ymin, ymax, vsize)
     #print gk.sum().shape
     if xmax-xmin != kernx or ymax-ymin != kerny:
         specdata = dt[y0, x0, :]

@@ -47,7 +47,7 @@ def extract_posvel_angle(hdu, p1, angle, header=None, gauss_width=2):
     hdr = header.copy()
     dt = data.copy()
     hdu = pyfits.PrimaryHDU(dt, header=hdr)
-    if gauss_width <= 0 or type(gauss_width) != types.IntType:
+    if gauss_width <= 0 or not isinstance(gauss_width, int):
         raise CubeVisArgumentError('gauss_width', "should be positive and non-zero integer")
     try:
         if len(p1) != 2:
